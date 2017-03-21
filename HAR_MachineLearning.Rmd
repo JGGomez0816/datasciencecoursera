@@ -1,0 +1,250 @@
+---
+title: "Predicting Manner of Exercise Using Human Activity Recognition Devices"
+author: "JGG"
+date: "March 20, 2017"
+output:
+  html_document:
+    keep_md: yes
+  pdf_document: default
+---
+
+
+##Background and Data Source
+
+
+In this project, we will use training and test data sets from the website  http://groupware.les.inf.puc-rio.br/har.  
+
+As described in the website, *six young health participants were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions: exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E).*
+
+So, our goal is to predict the manner in which the six participants did the exercise. This is the "classe" variable in the training set.  The following predictors were used initially: "user_name", "new_window", "total_accel_belt", "total_accel_arm", "total_accel_dumbbell", "total_accel_forearm."  However, additional predictors were considered in the final model to increase accuracy.
+
+
+
+##Loading and Processing the Data
+
+```{r, echo=FALSE}
+setwd("C:/Users/jggomez/Desktop/Data Science/Course 8/Project")
+```
+
+
+```{r, message=FALSE, warning=FALSE}
+library(caret)
+library(kernlab)
+library(ggplot2)
+library(gridExtra)
+```
+
+```{r, echo=TRUE}
+pml = read.csv("pml-training.csv") 
+	##to be divided into training and validation data sets	
+testing = read.csv("pml-testing.csv")
+dim(pml)
+dim(testing)
+```
+
+
+####Create training and validation data sets
+
+```{r, echo=TRUE}
+set.seed(1)
+inBuild = createDataPartition(y=pml$classe, p=0.6, list=FALSE)
+validation = pml[-inBuild,]
+buildData = pml[inBuild,]
+
+set.seed(1)
+inTrain = createDataPartition(y=buildData$classe, p=1.0, list=FALSE)
+training = buildData[inTrain,]
+dim(training)
+dim(validation)
+dim(testing)
+```
+
+##Exploratory Data Analysis
+
+```{r, echo=TRUE}
+table(training$classe)
+table(training$user_name,training$classe)
+table(training$new_window,training$classe)
+summary(training$total_accel_belt)
+summary(training$total_accel_arm)
+summary(training$total_accel_dumbbell)
+summary(training$total_accel_forearm)
+```
+
+
+####Boxplot of "classe" variable versus predictors
+
+```{r, echo=FALSE}
+p9 = qplot(classe,user_name , data = training, fill = classe, 
+		geom = c("jitter"))
+p10 = qplot(classe,new_window , data = training, fill = classe, 
+		geom = c("jitter"))
+g3 = grid.arrange(p9, p10, ncol=2, nrow =1)
+```
+
+```{r, echo=FALSE}
+p1 = qplot(classe, total_accel_belt, data = training, fill = classe, 
+		geom = c("boxplot","jitter"))
+p2 = qplot(classe, total_accel_arm, data = training, fill = classe, 
+		geom = c("boxplot","jitter"))
+p3 = qplot(classe, total_accel_dumbbell, data = training, fill = classe, 
+		geom = c("boxplot","jitter"))
+p4 = qplot(classe, total_accel_forearm, data = training, fill = classe, 
+		geom = c("boxplot","jitter"))
+g1 = grid.arrange(p1, p2, p3, p4, ncol=2, nrow =2)
+```
+
+
+From the plot above, we can observe large number of dots in each different boxes and so, it suggests that trend, if any, may be true.  
+
+
+
+##Prediction Models
+
+**Prediction with trees** and **model-based prediction** will be used for convenience.   
+
+
+###A. Predicting with Trees
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+set.seed(1)
+mod1 = train(classe ~ user_name + new_window+ total_accel_belt + 
+			total_accel_arm + total_accel_dumbbell + total_accel_forearm, 
+		method="rpart", data=training)
+print(mod1$finalModel)
+```
+
+####Measure accuracy of mod1 in the training set
+
+```{r, echo=TRUE}
+prediction1 = predict(mod1, newdata=training)
+result1 = confusionMatrix(prediction1, training$classe)
+result1
+```
+
+Accuracy of mod1 in the training set is only 42%.
+
+####Measure accuracy of mod1 in the validation set
+
+```{r, echo=TRUE}
+prediction2 = predict(mod1, newdata=validation)
+result2 = confusionMatrix(prediction2, validation$classe)
+result2
+```
+
+Accuracy of mod1 in the validation set is only 41%.
+
+####Predict test set using mod1
+
+```{r, echo=TRUE}
+test.prediction1 = predict(mod1, testing)
+table(test.prediction1)
+```
+
+We cannot validate the accuracy in test set since there is no "classe" variable.
+
+
+###B. Model-based Prediction
+
+####B.1 Linear Discriminant Analysis (LDA)
+
+```{r, echo=TRUE,message=FALSE, warning=FALSE}
+set.seed(1)
+modLDA = train(classe ~ user_name + new_window+ total_accel_belt + 
+			total_accel_arm + total_accel_dumbbell + total_accel_forearm,
+		method="lda", data=training)
+predictLDA_val = predict(modLDA, validation)
+round(table(predictLDA_val,validation$classe)/length(validation$classe),2)
+    ##to measure the accuracy
+```
+
+Accuracy of modLDA in the validation set is 38% (that is, 0.21+0.04+0.02+0.04+0.07)
+
+####B.2 Naive Bayes (NB)
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+set.seed(1)
+modNB = train(classe ~ user_name + new_window+ total_accel_belt + 
+			total_accel_arm + total_accel_dumbbell + total_accel_forearm, 
+		method="nb", data=training)
+predictNB_val = predict(modNB, validation)
+round(table(predictNB_val,validation$classe)/length(validation$classe),2)
+```
+
+Accuracy of modLDA in the validation set is 42%.
+
+####predict and compare results in the validation set
+
+```{r, echo=TRUE}
+table(predictLDA_val, predictNB_val)
+
+equalPredictions_val = (predictLDA_val == predictNB_val)
+round(table(equalPredictions_val)/nrow(validation),2)
+```
+
+Prediction results show that modLDA and modNB agreed 61% of the time in the validation set.
+
+
+
+####predict and compare results in the test set
+
+```{r, echo=FALSE}
+predictLDA_test = predict(modLDA, testing)
+predictNB_test = predict(modNB, testing)
+table(predictLDA_test, predictNB_test)
+
+equalPredictions_test = (predictLDA_test == predictNB_test)
+table(equalPredictions_test)/nrow(testing)
+```
+
+Prediction results show that modLDA and modNB agreed 55% of the time in the test set.
+
+####OBSERVATION
+
+Though accuracy measures in the the models above are low (below 50%), results are consistent.  Increasing the number of predictors may also increase the Accuracy of the models.
+
+
+
+##FINAL MODEL
+
+
+For the final model, LDA with incrased number of predictors will be used for convenience and speed of running the model.
+
+
+###LDA with increased number of predictors
+
+```{r, echo=TRUE}
+set.seed(1)
+modLDA2 = train(classe ~ user_name + new_window+ total_accel_belt + 
+			total_accel_arm + total_accel_dumbbell + total_accel_forearm+
+			num_window + roll_belt + pitch_belt + yaw_belt+
+			roll_arm + pitch_arm + yaw_arm+
+			roll_dumbbell + pitch_dumbbell + yaw_dumbbell+
+	 		roll_forearm + pitch_forearm + yaw_forearm +
+			gyros_belt_x + gyros_belt_y + gyros_belt_z + 
+			accel_belt_x + accel_belt_y + accel_belt_z +
+			magnet_belt_x + magnet_belt_y + magnet_belt_z +
+			gyros_arm_x + gyros_arm_y + gyros_arm_z + 
+			accel_arm_x + accel_arm_y + accel_arm_z +
+                  magnet_arm_x + magnet_arm_y + magnet_arm_z +
+			gyros_dumbbell_x + gyros_dumbbell_y + gyros_dumbbell_z +
+			accel_dumbbell_x + accel_dumbbell_y + accel_dumbbell_z +
+			magnet_dumbbell_x + magnet_dumbbell_y + magnet_dumbbell_z + 
+			gyros_forearm_x + gyros_forearm_y + gyros_forearm_z +
+			accel_forearm_x + accel_forearm_y + accel_forearm_z + 
+ 			magnet_forearm_x + magnet_forearm_y + magnet_forearm_z, 
+		method="lda", data=training)
+predictLDA_val2 = predict(modLDA2, validation)
+round(table(predictLDA_val2,validation$classe)/length(validation$classe),2)
+```
+
+
+Accuracy of modLDA2 in the validation set is now 74%.
+
+
+####predict test set using modLDA2
+
+```{r, echo=TRUE}
+predictLDA_test = predict(modLDA2, testing)
+predictLDA_test
+```
