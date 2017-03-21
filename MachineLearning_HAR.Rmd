@@ -20,7 +20,7 @@ So, our goal is to predict the manner in which the six participants did the exer
 ##Loading and Processing the Data
 
 ```{r, echo=FALSE}
-setwd("C:/Users/jggomez/Desktop/Data Science/Course 8")
+setwd("C:/Users/jggomez/Desktop/Data Science/Course 8/Project")
 ```
 
 
